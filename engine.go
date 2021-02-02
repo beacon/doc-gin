@@ -10,86 +10,94 @@ import (
 // Engine with doc/gin engine
 type Engine struct {
 	*gin.Engine
-	docRoot *openapi.OpenAPI
+	openAPI  *openapi.OpenAPI
+	docRoute openapi.Router
 }
 
 // NewEngine new engine
 func NewEngine(enableOpenAPI bool) *Engine {
-	var docRoot *openapi.OpenAPI
-	if enableOpenAPI {
-		docRoot, _ = openapi.New("3.0.0", openapi.Info{})
+	g := &Engine{
+		Engine: gin.New(),
 	}
-	return &Engine{docRoot: docRoot}
+	if enableOpenAPI {
+		openAPI, _ := openapi.New("3.0.0", openapi.Info{})
+		g.openAPI = openAPI
+		g.docRoute = openapi.NewRouter(g.openAPI)
+	}
+	return g
 }
 
 // Doc do something to OpenAPI document
 func (g *Engine) Doc(fn func(*openapi.OpenAPI)) *openapi.OpenAPI {
-	if g.docRoot != nil {
-		fn(g.docRoot)
+	if g.openAPI != nil && fn != nil {
+		fn(g.openAPI)
 	}
 
-	return g.docRoot
+	return g.openAPI
 }
 
 var _ IRouter = (*Engine)(nil)
 
 // Group creates a new router group. You should add all the routes that have common middlewares or the same path prefix.
 // For example, all the routes that use a common middleware for authorization could be grouped.
-func (g *Engine) Group(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) *RouterGroup {
-	if docFn != nil {
-
+func (g *Engine) Group(relativePath string, routeFn DocRouteFunc, handlers ...HandlerFunc) *RouterGroup {
+	subGroup := &RouterGroup{
+		engine:      g,
+		RouterGroup: g.Engine.Group(relativePath, toGinHandlers(handlers)...),
+	}
+	if routeFn != nil && g.docRoute != nil {
+		subGroup.docRouter = g.docRoute.Route(relativePath, routeFn)
 	}
 
 	return &RouterGroup{
-		engine:      g,
-		RouterGroup: g.Engine.Group(relativePath, toGinHandlers(handlers)...),
+		engine: g,
 	}
 }
 
 // Handle some method
-func (g *Engine) Handle(method, relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) Handle(method, relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	g.Engine.Handle(method, relativePath, toGinHandlers(handlers)...)
 	return g
 }
 
 // POST is a shortcut for router.Handle("POST", path, handle).
-func (g *Engine) POST(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) POST(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodPost, relativePath, docFn, handlers...)
 }
 
 // GET is a shortcut for router.Handle("GET", path, handle).
-func (g *Engine) GET(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) GET(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodGet, relativePath, docFn, handlers...)
 }
 
 // DELETE is a shortcut for router.Handle("DELETE", path, handle).
-func (g *Engine) DELETE(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) DELETE(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodDelete, relativePath, docFn, handlers...)
 }
 
 // PATCH is a shortcut for router.Handle("PATCH", path, handle).
-func (g *Engine) PATCH(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) PATCH(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodPatch, relativePath, docFn, handlers...)
 }
 
 // PUT is a shortcut for router.Handle("PUT", path, handle).
-func (g *Engine) PUT(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) PUT(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodPut, relativePath, docFn, handlers...)
 }
 
 // OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle).
-func (g *Engine) OPTIONS(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) OPTIONS(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodOptions, relativePath, docFn, handlers...)
 }
 
 // HEAD is a shortcut for router.Handle("HEAD", path, handle).
-func (g *Engine) HEAD(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) HEAD(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	return g.Handle(http.MethodHead, relativePath, docFn, handlers...)
 }
 
 // Any registers a route that matches all the HTTP methods.
 // GET, POST, PUT, PATCH, HEAD, OPTIONS, DELETE, CONNECT, TRACE.
-func (g *Engine) Any(relativePath string, docFn DocHandlerFunc, handlers ...HandlerFunc) IRoutes {
+func (g *Engine) Any(relativePath string, docFn DocOpFunc, handlers ...HandlerFunc) IRoutes {
 	g.Handle(http.MethodGet, relativePath, docFn, handlers...)
 	g.Handle(http.MethodPost, relativePath, docFn, handlers...)
 	g.Handle(http.MethodPut, relativePath, docFn, handlers...)

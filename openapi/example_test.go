@@ -12,7 +12,9 @@ func ExampleNew() {
 	}
 	r := NewRouter(o)
 	r.Route("/books", func(r Router) {
-		r.GET("/", "List books", "List books").
+		r.GET("/", func(o *Operation) {
+				o.Metadata("List books", "list books")
+			}.
 			Returns(200, "Book content", "bookArray", []*Book{}).
 			Returns(404, "Book not found", "replyError", &ReplyError{
 				Code:    "book_not_found",
@@ -21,7 +23,7 @@ func ExampleNew() {
 			Code:    "internal_error",
 			Message: "an unknown error occurred in our end",
 		})
-		r.POST("/", "Add new book", "Add a new book").
+		r.POST("/", "Add new book", "Add a new book").InJSON(),
 			ReadJSON("JSON of book info", true, "book", &Book{}).
 			Returns(200, "Book content", "book", &Book{}).
 			Returns(404, "Book not found", "replyError", &ReplyError{

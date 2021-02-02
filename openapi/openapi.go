@@ -39,8 +39,11 @@ var (
 
 // Supported mime types when using shortcuts
 const (
-	MimeJSON = "application/json"
-	MimeYAML = "application/yaml"
+	MimeJSON           = "application/json; charset=utf-8"
+	MimeAsciiJSON      = "application/json"
+	MimeYAML           = "application/yaml; charset=utf-8"
+	MimeFormURLEncoded = "application/x-www-form-urlencoded" // form data will be encoded/escaped in url form
+	MimeFormMultipart  = "multipart/form-data"               // multipart form data can be used to transfer binary files
 )
 
 // New create OpenAPI document object and set it as global document root
@@ -98,7 +101,7 @@ func (o *OpenAPI) MustGetSchema(key string, v interface{}) *Schema {
 	schema := o.GetSchema(key)
 	if schema == nil {
 		var err error
-		schema, err = Interface(v)
+		schema, err = Interface(v, "json")
 		if err != nil {
 			panic(err)
 		}
@@ -176,9 +179,10 @@ func (p *Path) AddOperation(method string) *Operation {
 		panic("operation for path " + p.path + " already exists method " + method)
 	}
 	op := &Operation{
-		method:    method,
-		path:      p,
-		Responses: make(Responses),
+		method:       method,
+		path:         p,
+		MOperationID: DefaultOperationID(method, p.path),
+		MResponses:   make(Responses),
 	}
 	p.operations[method] = op
 	return op
@@ -228,7 +232,7 @@ func (p *Param) SetDeprecated() *Param {
 
 // WithStruct add struct schema for param
 func (p *Param) WithStruct(v interface{}) *Param {
-	schema, err := Interface(v)
+	schema, err := Interface(v, "json")
 	if err != nil {
 		panic(err)
 	}

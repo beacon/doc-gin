@@ -16,7 +16,7 @@ func TestStructTags(t *testing.T) {
 	s := person{
 		"James", 16, 170.5, []string{"a", "b"},
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPtr(t *testing.T) {
 	s := &person{
 		"James", 16, 170.5, nil,
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestStructSlice(t *testing.T) {
 			{"Tom", 18, 174.0, nil},
 		},
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestStructPtrSlice(t *testing.T) {
 			{"Tom", 18, 174.0, nil},
 		},
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestStructMap(t *testing.T) {
 		"tom":   {"Tom", 18, 174.0, nil},
 		"james": {"James", 16, 170.5, nil},
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestStructMap(t *testing.T) {
 
 func TestEmptyStructMap(t *testing.T) {
 	s := map[string]person{}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestPtrMap(t *testing.T) {
 		"tom":   {"Tom", 18, 174.0, nil},
 		"james": {"James", 16, 170.5, nil},
 	}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestPtrMap(t *testing.T) {
 
 func TestEmptyMap(t *testing.T) {
 	s := map[string]*person{}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestEmptyMap(t *testing.T) {
 
 func TestPlainMap(t *testing.T) {
 	s := map[string]int{}
-	schema, err := Interface(s)
+	schema, err := Interface(s, "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestEmbedStruct(t *testing.T) {
 			},
 		},
 	}
-	schema, err := Interface(&a)
+	schema, err := Interface(&a, "json")
 	if err != nil {
 		t.Fatal(err)
 	}

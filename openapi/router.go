@@ -5,6 +5,9 @@ import (
 	"reflect"
 )
 
+// OpFn customize operations
+type OpFn func(o *Operation)
+
 // Router is a extract of api path.
 // router grouped in multiple levels can share parameters(path/query/header/etc)
 type Router interface {
@@ -14,13 +17,13 @@ type Router interface {
 	WithTags(tags ...string) Router
 	Route(path string, fn func(r Router)) Router
 	// HTTP methods
-	Method(method, path, summary, description string) *Operation
-	GET(path, summary, description string) *Operation
-	PUT(path, summary, description string) *Operation
-	POST(path, summary, description string) *Operation
-	DELETE(path, summary, description string) *Operation
-	HEAD(path, summary, description string) *Operation
-	PATCH(path, summary, description string) *Operation
+	Method(method, path string, opFn OpFn)
+	GET(path string, opFn OpFn)
+	PUT(path string, opFn OpFn)
+	POST(path string, opFn OpFn)
+	DELETE(path string, opFn OpFn)
+	HEAD(path string, opFn OpFn)
+	PATCH(path string, opFn OpFn)
 }
 
 type router struct {
@@ -55,34 +58,34 @@ func (r *router) Root() *OpenAPI {
 }
 
 // GET short cut
-func (r *router) GET(path, summary, description string) *Operation {
-	return r.Method("get", path, summary, description)
+func (r *router) GET(path string, opFn OpFn) {
+	r.Method("get", path, opFn)
 }
 
 // PUT put
-func (r *router) PUT(path, summary, description string) *Operation {
-	return r.Method("put", path, summary, description)
+func (r *router) PUT(path string, opFn OpFn) {
+	r.Method("put", path, opFn)
 }
 
 // POST post
-func (r *router) POST(path, summary, description string) *Operation {
-	return r.Method("post", path, summary, description)
+func (r *router) POST(path string, opFn OpFn) {
+	r.Method("post", path, opFn)
 }
 
-func (r *router) DELETE(path, summary, description string) *Operation {
-	return r.Method("delete", path, summary, description)
+func (r *router) DELETE(path string, opFn OpFn) {
+	r.Method("delete", path, opFn)
 }
 
-func (r *router) PATCH(path, summary, description string) *Operation {
-	return r.Method("patch", path, summary, description)
+func (r *router) PATCH(path string, opFn OpFn) {
+	r.Method("patch", path, opFn)
 }
 
-func (r *router) HEAD(path, summary, description string) *Operation {
-	return r.Method("head", path, summary, description)
+func (r *router) HEAD(path string, opFn OpFn) {
+	r.Method("head", path, opFn)
 }
 
 // Method add method to router
-func (r *router) Method(method, path, summary, description string) *Operation {
+func (r *router) Method(method, path string, opFn OpFn) {
 	apiPath, exists := r.paths[path]
 
 	// Retrieve upstream to collect things back
@@ -119,9 +122,8 @@ func (r *router) Method(method, path, summary, description string) *Operation {
 		tags = append(tags, upstream.tags...)
 	})
 	op := apiPath.AddOperation(method)
-	op.Summary = summary
-	op.Description = description
-	return op.WithTags(tags...)
+	opFn(op)
+	op.Tags(tags...)
 }
 
 // WithParam add param

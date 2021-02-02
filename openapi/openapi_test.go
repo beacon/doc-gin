@@ -40,8 +40,8 @@ func TestPathOp(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := o.AddPath("/books", "Books operation", "操作书籍")
-	p.AddOperation("get").Metadata("getBooks", "List books", "List books with info")
-	p.AddOperation("put").Metadata("putBook", "Create books", "Put a single book to books")
+	p.AddOperation("get").Metadata("List books", "List books with info")
+	p.AddOperation("put").Metadata("Create books", "Put a single book to books")
 	raw, err := json.Marshal(o)
 	if err != nil {
 		t.Fatal(err)
@@ -84,14 +84,14 @@ func TestParamSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := o.AddPath("/books/{id}", "Books Operation", "Operate on books")
-	op := path.AddOperation("get").Metadata("", "Get Single Book", "Get full info of a book")
+	op := path.AddOperation("get").Metadata("Get Single Book", "Get full info of a book")
 	op.AddParam(PathParam, "id", "ID of the book")
 	op.Returns(200, "Book content", "book", &Book{}).Returns(404, "Book not found", "replyError", &ReplyError{
 		Code:    "book_not_found",
 		Message: "The request book is not found",
 	})
 	path = o.AddPath("/books/", "Books Operation", "Operation on books")
-	op = path.AddOperation("post").Metadata("", "Add a new book", "Add a new book to the store")
+	op = path.AddOperation("post").Metadata("Add a new book", "Add a new book to the store")
 	op.ReadJSON("JSON of book info", true, "book", &Book{}).Returns(200, "Book content", "book", &Book{}).Returns(404, "Book not found", "replyError", &ReplyError{
 		Code:    "book_not_found",
 		Message: "The request book is not found",

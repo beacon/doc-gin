@@ -197,7 +197,7 @@ func (s *Schema) WithOneOf(keyAndValues ...interface{}) *Schema {
 		if s.root != nil {
 			schema = s.root.MustGetSchema(key, v)
 		} else {
-			schema, err = Interface(v)
+			schema, err = Interface(v, "json")
 			if err != nil {
 				panic(err)
 			}
@@ -213,7 +213,7 @@ func (s *Schema) WithAnyOf(args ...interface{}) *Schema {
 		panic(ErrNoOneOf)
 	}
 	for _, arg := range args {
-		schema, err := Interface(arg)
+		schema, err := Interface(arg, "json")
 		if err != nil {
 			panic(err)
 		}

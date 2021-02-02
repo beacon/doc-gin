@@ -7,29 +7,125 @@ import (
 
 // Operation OperationObject
 type Operation struct {
-	method      string
-	path        *Path
-	Tags        []string     `json:"tags,omitempty"`
-	Summary     string       `json:"summary,omitempty"`
-	Description string       `json:"description,omitempty"`
-	OperationID string       `json:"operationId,omitempty"`
-	Parameters  []*Param     `json:"parameters,omitempty"`
-	RequestBody *RequestBody `json:"requestBody,omitempty"`
-	Responses   Responses    `json:"responses" validate:"required"`
-	Deprecated  bool         `json:"deprecated,omitempty"`
+	method       string
+	path         *Path
+	MTags        []string     `json:"tags,omitempty"`
+	MSummary     string       `json:"summary,omitempty"`
+	MDescription string       `json:"description,omitempty"`
+	MOperationID string       `json:"operationId,omitempty"`
+	MParameters  []*Param     `json:"parameters,omitempty"`
+	MRequestBody *RequestBody `json:"requestBody,omitempty"`
+	// HTTP Status Code => Response
+	MResponses  Responses `json:"responses" validate:"required"`
+	MDeprecated bool      `json:"deprecated,omitempty"`
 }
 
-// Metadata add metadata to operation
-func (o *Operation) Metadata(operationID, summary, description string) *Operation {
-	if operationID == "" && OperationGenerator != nil {
-		operationID = OperationGenerator(o.method, o.path.path)
-	}
-	if operationID != "" {
-		o.OperationID = operationID
-	}
+// Summary setter
+func (o *Operation) Summary(s string) *Operation {
+	o.MSummary = s
+	return o
+}
 
-	o.Summary = summary
-	o.Description = description
+// Description setter
+func (o *Operation) Description(s string) *Operation {
+	o.MDescription = s
+	return o
+}
+
+// Tags setter
+func (o *Operation) Tags(tags ...string) *Operation {
+	tagMap := make(map[string]struct{})
+	for _, tag := range o.MTags {
+		tagMap[tag] = struct{}{}
+	}
+	for _, tag := range tags {
+		if _, ok := tagMap[tag]; !ok {
+			tagMap[tag] = struct{}{}
+			o.MTags = append(o.MTags, tag)
+		}
+	}
+	return o
+}
+
+// Param add a parameter
+func (o *Operation) Param(p *Param) *Operation {
+	for _, param := range o.MParameters {
+		if param.Name == p.Name {
+			panic("duplicate parameter of name:" + p.Name)
+		}
+	}
+	paramID := o.MOperationID + "_" + p.Name
+	o.Root().Components.Parameters[paramID] = p
+	return o
+}
+
+// Metadata add metadata to operation.
+// OperationID is required in OpenAPI. If it's empty, an operation id is generated automatically
+func (o *Operation) Metadata(summary, description string) *Operation {
+	o.MSummary = summary
+	o.MDescription = description
+	return o
+}
+
+// RequestBody setup request body
+func (o *Operation) RequestBody(fn func(*RequestBody)) *Operation {
+	if o.MRequestBody == nil {
+		o.MRequestBody = new(RequestBody)
+	}
+	fn(o.MRequestBody)
+	o.Root().Components.RequestBodies[o.MOperationID] = o.MRequestBody
+	return o
+}
+
+// InJSON request body in json format
+func (o *Operation) InJSON(v interface{}, bodyFns ...func(*RequestBody)) *Operation {
+	rb := &RequestBody{}
+	o.Root().Components.RequestBodies[o.MOperationID] = rb
+	for _, fn := range bodyFns {
+		fn(rb)
+	}
+	return o
+}
+
+// OutJSON response in json format
+func (o *Operation) OutJSON(code int, v interface{}, bodyFn ...func(*Response)) *Operation {
+	strCode := strconv.Itoa(code)
+	if _, exists := o.MResponses[strCode]; exists {
+		panic("operation " + o.MOperationID + " already returns code " + strCode)
+	}
+	schema := o.Root().MustGetSchema("", v)
+	resp := &Response{
+		Headers: make(paramMap),
+		Content: mediaTypeMap{
+			MimeJSON: &MediaType{
+				Schema:  schema,
+				Example: v,
+			},
+		},
+	}
+	o.MResponses[strCode] = resp
+	for _, fn := range bodyFn {
+		fn(resp)
+	}
+	return o
+}
+
+// InForm add a param in form
+func (o *Operation) InForm(v interface{}, bodyFn ...func(*Response)) *Operation {
+	// TODO: parse interface with "form" tag
+	schema := o.Root().MustGetSchema("", v)
+	resp := &Response{
+		Headers: make(paramMap),
+		Content: mediaTypeMap{
+			MimeJSON: &MediaType{
+				Schema:  schema,
+				Example: v,
+			},
+		},
+	}
+	for _, fn := range bodyFn {
+		fn(resp)
+	}
 	return o
 }
 
@@ -44,11 +140,11 @@ func (o *Operation) Root() *OpenAPI {
 // Returns with code
 func (o *Operation) Returns(code int, description string, key string, v interface{}) *Operation {
 	strCode := strconv.Itoa(code)
-	if _, exists := o.Responses[strCode]; exists {
-		panic("operation " + o.OperationID + " already returns code " + strCode)
+	if _, exists := o.MResponses[strCode]; exists {
+		panic("operation " + o.MOperationID + " already returns code " + strCode)
 	}
 	r := o.newResponse(description, key, v)
-	o.Responses[strCode] = r
+	o.MResponses[strCode] = r
 	return o
 }
 
@@ -56,10 +152,10 @@ func (o *Operation) Returns(code int, description string, key string, v interfac
 func (o *Operation) ReturnsNonJSON(code int, description string,
 	mimeType string, headers map[string]*Param, schema *Schema, example interface{}) *Operation {
 	strCode := strconv.Itoa(code)
-	if _, exists := o.Responses[strCode]; exists {
-		panic("operation " + o.OperationID + " already returns code " + strCode)
+	if _, exists := o.MResponses[strCode]; exists {
+		panic("operation " + o.MOperationID + " already returns code " + strCode)
 	}
-	o.Responses[strCode] = &Response{
+	o.MResponses[strCode] = &Response{
 		Description: description,
 		Headers:     headers,
 		Content: mediaTypeMap{
@@ -75,7 +171,7 @@ func (o *Operation) ReturnsNonJSON(code int, description string,
 // ReturnDefault add default response.
 // A default response is the response to be used when none of defined codes match the situation.
 func (o *Operation) ReturnDefault(description string, key string, v interface{}) *Operation {
-	o.Responses["default"] = o.newResponse(description, key, v)
+	o.MResponses["default"] = o.newResponse(description, key, v)
 	return o
 }
 
@@ -96,7 +192,7 @@ func (o *Operation) newResponse(description string, key string, v interface{}) *
 // ReadJSON read object json from request body
 func (o *Operation) ReadJSON(description string, required bool, key string, v interface{}) *Operation {
 	schema := o.Root().MustGetSchema(key, v)
-	o.RequestBody = &RequestBody{
+	o.MRequestBody = &RequestBody{
 		Description: description,
 		Required:    required,
 		Content: mediaTypeMap{
@@ -111,7 +207,7 @@ func (o *Operation) ReadJSON(description string, required bool, key string, v in
 
 // Read read raw body of any kind
 func (o *Operation) Read(description string, required bool, mimeType string, example interface{}) *Operation {
-	o.RequestBody = &RequestBody{
+	o.MRequestBody = &RequestBody{
 		Description: description,
 		Required:    required,
 		Content: mediaTypeMap{
@@ -140,7 +236,7 @@ func (o *Operation) AddParam(in ParamType, name, description string) *Param {
 			Type: "string",
 		}
 	}
-	o.Parameters = append(o.Parameters, param)
+	o.MParameters = append(o.MParameters, param)
 	return param
 }
 
@@ -149,7 +245,7 @@ func (o *Operation) WithParam(param *Param) *Operation {
 	if !param.In.IsValid() {
 		panic("invalid param in " + param.In)
 	}
-	o.Parameters = append(o.Parameters, param)
+	o.MParameters = append(o.MParameters, param)
 	return o
 }
 
@@ -179,10 +275,4 @@ func (o *Operation) WithQueryParam(name, description string, example interface{}
 			Type: typ,
 		},
 	})
-}
-
-// WithTags add tags
-func (o *Operation) WithTags(tags ...string) *Operation {
-	o.Tags = append(o.Tags, tags...)
-	return o
 }

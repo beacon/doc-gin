@@ -10,14 +10,14 @@ import (
 )
 
 // Interface parse interface as schema
-func Interface(v interface{}) (schema *Schema, err error) {
+func Interface(v interface{}, tag string) (schema *Schema, err error) {
 	// Try SchemaDoc provided by itself
 	schemaProvider, ok := v.(SchemaDoc)
 	if ok {
 		schema = schemaProvider.SchemaDoc()
 	} else {
 		var err error
-		schema, err = parseInterface(reflect.TypeOf(v), reflect.ValueOf(v))
+		schema, err = parseInterface(reflect.TypeOf(v), reflect.ValueOf(v), tag)
 		if err != nil {
 			return nil, err
 		}
@@ -25,7 +25,7 @@ func Interface(v interface{}) (schema *Schema, err error) {
 	return schema, nil
 }
 
-func parseMap(tv reflect.Type, rv reflect.Value) (*Schema, error) {
+func parseMap(tv reflect.Type, rv reflect.Value, nameTag string) (*Schema, error) {
 	schema := &Schema{
 		Type:                 "object",
 		AdditionalProperties: &Schema{},
@@ -39,7 +39,7 @@ func parseMap(tv reflect.Type, rv reflect.Value) (*Schema, error) {
 		} else {
 			elemValue = reflect.New(elemType).Elem()
 		}
-		s, err := parseInterface(elemType, elemValue)
+		s, err := parseInterface(elemType, elemValue, nameTag)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process map element %v", rv.Elem())
 		}
@@ -70,7 +70,7 @@ func kindToType(kind reflect.Kind) (typ string, format string) {
 	}
 }
 
-func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err error) {
+func parseInterface(tv reflect.Type, rv reflect.Value, nameTag string) (schema *Schema, err error) {
 	method := rv.MethodByName("SchemaDoc")
 	if method.IsValid() {
 		values := method.Call(nil)
@@ -86,7 +86,7 @@ func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err erro
 	}
 	switch tv.Kind() {
 	case reflect.Struct:
-		return parseStruct(tv, rv)
+		return parseStruct(tv, rv, nameTag)
 	case reflect.Slice:
 		elemType := tv.Elem()
 		var elemValue reflect.Value
@@ -95,7 +95,7 @@ func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err erro
 		} else {
 			elemValue = reflect.New(tv.Elem()).Elem()
 		}
-		schema, err := parseInterface(elemType, elemValue)
+		schema, err := parseInterface(elemType, elemValue, nameTag)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +104,7 @@ func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err erro
 			Items: schema,
 		}, nil
 	case reflect.Map:
-		return parseMap(tv, rv)
+		return parseMap(tv, rv, nameTag)
 	case reflect.Ptr:
 		for tv.Kind() == reflect.Ptr {
 			tv = tv.Elem()
@@ -114,7 +114,7 @@ func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err erro
 				rv = reflect.New(tv).Elem()
 			}
 		}
-		return parseInterface(tv, rv)
+		return parseInterface(tv, rv, nameTag)
 	default:
 		typ, format := kindToType(tv.Kind())
 		return &Schema{
@@ -124,7 +124,7 @@ func parseInterface(tv reflect.Type, rv reflect.Value) (schema *Schema, err erro
 	}
 }
 
-func parseStruct(tv reflect.Type, rv reflect.Value) (schema *Schema, err error) {
+func parseStruct(tv reflect.Type, rv reflect.Value, nameTag string) (schema *Schema, err error) {
 	schema = &Schema{
 		Type:       "object",
 		Properties: make(map[string]*Schema),
@@ -137,14 +137,14 @@ func parseStruct(tv reflect.Type, rv reflect.Value) (schema *Schema, err error) 
 		} else {
 			v = rv.Field(i)
 		}
-		jsonTag, ok := f.Tag.Lookup("json")
+		jsonTag, ok := f.Tag.Lookup(nameTag)
 		if !ok {
 			continue
 		}
 		if jsonTag == "-" {
 			continue
 		}
-		s, err := parseInterface(f.Type, v)
+		s, err := parseInterface(f.Type, v, nameTag)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing field %s", f.Name)
 		}
